@@ -1,0 +1,99 @@
+---
+title: "precision curve stat"
+author: "Juechen Yang"
+date: "7/16/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import all data from csv files
+```{r}
+file_dir = "./Precision_20targets/"
+file_list = list.files(path = file_dir, pattern = "*.csv$")
+file_path = paste0(file_dir, file_list)
+#read all csv into a var
+all_dfs = lapply(file_path, read.csv, header = T)
+#union all df into one
+total_df = all_dfs[[1]]
+for(x in seq(2,20)){
+  #print(class(x))
+  total_df = rbind(total_df, all_dfs[[x]])
+}
+#get the real probability of precision
+total_df$precision = total_df$precision/100
+#checkout content for merged dataframe
+head(total_df,30)
+```
+
+# Check balance of data
+```{r}
+table(total_df_filtered$group, total_df_filtered$size)
+#if we pursue balanced data, keep data for library size less than 1
+total_df_filtered = total_df[total_df$size<=1,]
+```
+
+# Check validity of two-way ANOVA
+```{r}
+car::leveneTest(precision ~ group * factor(size), data = total_df_filtered)
+```
+
+Since p value is less than 0.05, there is no homogeneity of variances. Thus it is not valid to do Two-way anova test
+
+# Apply pair-wise wilcox comparison
+```{r}
+res.wilcox.pw = pairwise.wilcox.test(total_df$precision, total_df$group, alternative="greater", p.adjust.method = "none")
+res.wilcox.pw
+
+```
+
+# verify results of cML1 vs A 
+```{r}
+cML1 = total_df[total_df$group=="cML1",]$precision
+A = total_df[total_df$group=="A",]$precision
+res.wilcox = wilcox.test(cML1, A, alternative = "greater")
+res.wilcox$p.value == res.wilcox.pw$p.value["cML1", "A"]
+```
+
+# Extract comparison for cML1, cML5, C1, C5 vs A
+```{r}
+interested_p_values = c(res.wilcox.pw$p.value["cML1", "A"], res.wilcox.pw$p.value["cML5", "A"],
+                        res.wilcox.pw$p.value["C1", "A"], res.wilcox.pw$p.value["C5", "A"])
+
+interested_p_values < 0.05
+```
+
+# Apply linear mixed model
+```{r}
+#apply LMM in example data
+LMM <-   lmer(precision ~ group * factor(size) + (1 | target), total_df)
+summary(LMM)
+```
+
+# Apply linear regression
+```{r}
+res.lm = lm(precision ~ group + size + target, total_df)
+summary(res.lm)
+```
+
+# Chekcout example code
+```{r}
+df <- data.frame(
+  y = c(79, 52, 97, 103, 159, 169, 157, 85, 167, 116, 171, 149, 107, 172, 96, 
+        132, 168, 163, 111, 162, 
+        65, 91, 124, 167, 94, 184, 107, 73, 182, 105, 145, 130, 135, 75, 88, 
+        71, 62, 133, 96, 171, 
+        98, 137, 117, 79, 98, 115, 164, 126, 151, 91, 168, 134, 118, 87, 108, 
+        163, 102, 133, 125, 131),
+  side = rep(c("right", "left"), 30),
+  time = rep(1:3, each = 20),
+  subject = factor(rep(1:10, each = 2, times = 3)))
+
+#apply LMM in example data
+LMM <- lme4::lmer(y ~ side * factor(time) + (1 | subject), df)
+
+#checkout example data content
+head(df,30)
+```

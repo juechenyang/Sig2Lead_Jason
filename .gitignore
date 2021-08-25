@@ -1,0 +1,10 @@
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+*.pdf
+*.pptx
+*.zip
+*.docx
+.DS_Store
+outputs/*
